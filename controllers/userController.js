@@ -6,7 +6,7 @@ exports.register = (req, res) => {
   db.query("SELECT * FROM users WHERE email = ?", [email], (err, results) => {
     if (err) return res.status(500).json({ message: "DB error" });
     if (results.length > 0)
-      return res.status(400).json({ message: "Email already exists" });
+      return res.status(400).json({ message: "Phone already exists" });
 
     // Check referral code (if given)
     const handleInsert = (referredById = null) => {

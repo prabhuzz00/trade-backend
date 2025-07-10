@@ -42,7 +42,7 @@ const initializePeriod = () => {
 const simulatePrice = () => {
   gameState.tick++;
 
-  if (gameState.tick <= 80) {
+  if (gameState.tick <= 90) {
     const delta = (Math.random() * 2 - 1).toFixed(2);
     gameState.price = parseFloat(
       (gameState.price + parseFloat(delta)).toFixed(2)
@@ -57,7 +57,7 @@ const simulatePrice = () => {
     gameState.volume += Math.floor(baseVolume + volatilityBoost);
   }
 
-  if (gameState.tick === 81) {
+  if (gameState.tick === 91) {
     const currentPeriod = gameState.period;
 
     // ✅ Skip auto-result if already set by admin
@@ -124,7 +124,7 @@ const simulatePrice = () => {
     );
   }
 
-  if (gameState.tick > 80 && gameState.tick <= 119) {
+  if (gameState.tick > 91 && gameState.tick <= 119) {
     const randomDiff = Math.floor(Math.random() * (20 - 3 + 1)) + 3;
     let target =
       gameState.result === "green"

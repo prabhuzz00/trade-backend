@@ -136,7 +136,7 @@ exports.approveRecharge = (req, res) => {
                 if (!user.is_recharge && user.referred_by) {
                   // Add bonus to referrer
                   db.query(
-                    "UPDATE users SET balance = balance + 20, bonus = bonus + 20 WHERE id = ?",
+                    "UPDATE users SET balance = balance + 50, bonus = bonus + 50 WHERE id = ?",
                     [user.referred_by]
                   );
 
