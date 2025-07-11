@@ -1,15 +1,16 @@
 const crypto = require("crypto");
-const db = require("../db");
 const axios = require("axios");
+const db = require("../db");
 
 //lgpay
-
 exports.initiateRecharge = async (req, res) => {
   const user = req.user;
   const { amount } = req.body;
 
-  if (!user || !amount) {
-    return res.status(400).json({ success: false, message: "Missing fields" });
+  if (!user || !amount || isNaN(amount) || amount < 1) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing or invalid fields" });
   }
 
   const app_id = "YD4141";
@@ -21,9 +22,8 @@ exports.initiateRecharge = async (req, res) => {
   const remark = "inr888";
 
   const order_sn = `ORDER${Date.now()}UID${user.id}`;
-  const money = parseInt(amount * 100); // LGPay expects paise-like units
+  const money = parseInt(amount * 100); // Required by LGPay
 
-  // Build params
   const params = {
     app_id,
     trade_type,
@@ -35,7 +35,7 @@ exports.initiateRecharge = async (req, res) => {
     remark,
   };
 
-  // Generate sign string
+  // Create sign string
   const sortedKeys = Object.keys(params).sort();
   const signString =
     sortedKeys
@@ -48,7 +48,6 @@ exports.initiateRecharge = async (req, res) => {
     .digest("hex")
     .toUpperCase();
 
-  // Append sign
   params.sign = sign;
 
   try {
@@ -67,15 +66,16 @@ exports.initiateRecharge = async (req, res) => {
     if (data && data.code === 200 && data.data?.pay_url) {
       return res.json({ success: true, url: data.data.pay_url });
     } else {
+      console.error("LGPay error response:", data);
       return res
         .status(400)
         .json({ success: false, message: data.msg || "Gateway rejected" });
     }
   } catch (err) {
-    console.error("LGPay error:", err?.response?.data || err.message);
+    console.error("LGPay Axios error:", err?.response?.data || err.message);
     return res
       .status(500)
-      .json({ success: false, message: "LGPay server error" });
+      .json({ success: false, message: "Payment gateway error" });
   }
 };
 
