@@ -72,52 +72,65 @@ exports.initiateRecharge = async (req, res) => {
 };
 
 exports.handlePaymentCallback = (req, res) => {
-  const { userId, amount, txnid, status, sign, ...otherFields } = req.body;
+  const {
+    mch_id,
+    mch_order_no,
+    trade_amount,
+    currency,
+    pay_type,
+    attach,
+    sign,
+    sign_type,
+  } = req.body;
 
-  if (!userId || !amount || !txnid || !sign) {
-    return res.status(400).send("Missing fields");
+  if (!mch_order_no || !trade_amount || !sign) {
+    return res.status(400).send("Missing required fields");
   }
 
-  // Recreate the same signature string
+  // Extract userId from order_no
+  const match = mch_order_no.match(/(\d+)$/);
+  const userId = match ? parseInt(match[1]) : null;
+  if (!userId) return res.status(400).send("Invalid user ID");
+
   const privateKey = "762a827b2515e4463ba01945711c8532";
-  const payload = { userId, amount, txnid, status, ...otherFields };
-  const signString =
-    Object.keys(payload)
+
+  // Verify sign
+  const signData = {
+    attach,
+    currency,
+    mch_id,
+    mch_order_no,
+    pay_type,
+    trade_amount,
+  };
+
+  const signStr =
+    Object.keys(signData)
       .sort()
-      .map((key) => `${key}=${payload[key]}`)
+      .map((key) => `${key}=${signData[key]}`)
       .join("&") + `&key=${privateKey}`;
 
-  const expectedSign = crypto
-    .createHash("md5")
-    .update(signString)
-    .digest("hex");
+  const expectedSign = crypto.createHash("md5").update(signStr).digest("hex");
 
   if (expectedSign !== sign) {
     return res.status(403).send("Invalid signature");
   }
 
-  // Insert recharge record
+  // Save recharge and update balance
   db.query(
-    "INSERT INTO recharge_requests (user_id, amount, status, gateway_txn_id) VALUES (?, ?, ?, ?)",
-    [userId, amount, status, txnid],
+    "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status) VALUES (?, ?, ?, 'success')",
+    [userId, trade_amount, mch_order_no],
     (err) => {
       if (err) {
         console.error("Recharge insert error", err);
         return res.status(500).send("DB error");
       }
 
-      if (status === "success") {
-        db.query(
-          "UPDATE users SET balance = balance + ?, is_recharge = 1 WHERE id = ?",
-          [amount, userId],
-          (err2) => {
-            if (err2) return res.status(500).send("Balance update error");
-            return res.send("ok");
-          }
-        );
-      } else {
-        return res.send("rejected");
-      }
+      db.query(
+        "UPDATE users SET balance = balance + ? WHERE id = ?",
+        [trade_amount, userId],
+        () => res.send("ok")
+      );
     }
   );
 };
