@@ -66,7 +66,7 @@ exports.initiateRecharge = async (req, res) => {
       }
     );
 
-    if (data && data.code === 200 && data.data?.pay_url) {
+    if (data && data.code === 1 && data.data?.pay_url) {
       return res.json({ success: true, url: data.data.pay_url });
     } else {
       console.error("LGPay error response:", data);
