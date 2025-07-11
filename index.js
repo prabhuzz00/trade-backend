@@ -15,9 +15,9 @@ const app = express();
 const PORT = 8000;
 
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://192.168.1.40:5173",
+  // "http://localhost:5173",
+  // "http://localhost:5174",
+  // "http://192.168.1.40:5173",
   "https://bullvibe.co.in", // ✅ Client site
   "https://www.bullvibe.co.in",
   "https://admin.bullvibe.co.in", // ✅ Admin panel
