@@ -121,6 +121,7 @@ exports.handlePaymentCallback = (req, res) => {
     return res.status(400).send("Missing fields");
   }
 
+  // ✅ Build sign string exactly as LGPay expects
   const signParams = {
     mch_id,
     order_sn,
@@ -145,35 +146,43 @@ exports.handlePaymentCallback = (req, res) => {
     return res.status(403).send("Invalid signature");
   }
 
-  // Extract userId from order_sn like: ORDER165432123456UID10
-  const userId = parseInt(order_sn.split("UID")[1]);
-  if (!userId || isNaN(userId)) {
-    return res.status(400).send("Invalid user ID");
-  }
-
   const amount = parseFloat(order_amount) / 100;
 
-  // Prevent duplicate
+  // ✅ Find existing recharge record by order_sn
   db.query(
-    "SELECT id FROM recharge_requests WHERE gateway_txn_id = ?",
+    "SELECT * FROM recharge_requests WHERE gateway_txn_id = ?",
     [order_sn],
     (err, results) => {
       if (err) return res.status(500).send("DB error");
-      if (results.length > 0) return res.send("success"); // Already processed
 
+      if (results.length === 0) {
+        return res.status(404).send("Recharge not found");
+      }
+
+      const recharge = results[0];
+      const userId = recharge.user_id;
+
+      // ✅ If already paid, exit early
+      if (recharge.status === "success") {
+        return res.send("success");
+      }
+
+      // ✅ Update recharge status and user balance
       db.query(
-        "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status) VALUES (?, ?, ?, 'success')",
-        [userId, amount, order_sn],
+        "UPDATE recharge_requests SET status = 'success' WHERE id = ?",
+        [recharge.id],
         (err2) => {
-          if (err2) {
-            console.error("Insert error:", err2);
-            return res.status(500).send("DB error");
-          }
+          if (err2) return res.status(500).send("Failed to update recharge");
 
           db.query(
             "UPDATE users SET balance = balance + ? WHERE id = ?",
             [amount, userId],
-            () => res.send("success")
+            (err3) => {
+              if (err3)
+                return res.status(500).send("Failed to update user balance");
+
+              return res.send("success");
+            }
           );
         }
       );
