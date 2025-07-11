@@ -8,7 +8,7 @@ exports.initiateRecharge = async (req, res) => {
 
   const payload = {
     mch_id: "84423629",
-    mch_order_no: `ORDER${Date.now()}${user.id}`,
+    mch_order_no: `ORDER${Date.now()}_UID${user.id}`,
     notifyUrl: "https://api.bullvibe.co.in/api/recharge/callback",
     page_url: "https://bullvibe.co.in/recharge-history",
     trade_amount: parseInt(amount),
@@ -129,6 +129,70 @@ exports.initiateRecharge = async (req, res) => {
 //   res.send(formHtml);
 // };
 
+// exports.handlePaymentCallback = (req, res) => {
+//   const {
+//     mch_id,
+//     mch_order_no,
+//     trade_amount,
+//     currency,
+//     pay_type,
+//     attach,
+//     sign,
+//     sign_type,
+//   } = req.body;
+
+//   if (!mch_order_no || !trade_amount || !sign) {
+//     return res.status(400).send("Missing required fields");
+//   }
+
+//   // Extract userId from order_no
+//   const match = mch_order_no.match(/(\d+)$/);
+//   const userId = match ? parseInt(match[1]) : null;
+//   if (!userId) return res.status(400).send("Invalid user ID");
+
+//   const privateKey = "762a827b2515e4463ba01945711c8532";
+
+//   // Verify sign
+//   const signData = {
+//     attach,
+//     currency,
+//     mch_id,
+//     mch_order_no,
+//     pay_type,
+//     trade_amount,
+//   };
+
+//   const signStr =
+//     Object.keys(signData)
+//       .sort()
+//       .map((key) => `${key}=${signData[key]}`)
+//       .join("&") + `&key=${privateKey}`;
+
+//   const expectedSign = crypto.createHash("md5").update(signStr).digest("hex");
+
+//   if (expectedSign !== sign) {
+//     return res.status(403).send("Invalid signature");
+//   }
+
+//   // Save recharge and update balance
+//   db.query(
+//     "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status) VALUES (?, ?, ?, 'success')",
+//     [userId, trade_amount, mch_order_no],
+//     (err) => {
+//       if (err) {
+//         console.error("Recharge insert error", err);
+//         return res.status(500).send("DB error");
+//       }
+
+//       db.query(
+//         "UPDATE users SET balance = balance + ? WHERE id = ?",
+//         [trade_amount, userId],
+//         () => res.send("ok")
+//       );
+//     }
+//   );
+// };
+
 exports.handlePaymentCallback = (req, res) => {
   const {
     mch_id,
@@ -145,14 +209,13 @@ exports.handlePaymentCallback = (req, res) => {
     return res.status(400).send("Missing required fields");
   }
 
-  // Extract userId from order_no
-  const match = mch_order_no.match(/(\d+)$/);
-  const userId = match ? parseInt(match[1]) : null;
-  if (!userId) return res.status(400).send("Invalid user ID");
+  const userId = parseInt(mch_order_no.split("_UID")[1]);
+  if (!userId || isNaN(userId)) {
+    return res.status(400).send("Invalid user ID in order number");
+  }
 
   const privateKey = "762a827b2515e4463ba01945711c8532";
 
-  // Verify sign
   const signData = {
     attach,
     currency,
@@ -169,25 +232,32 @@ exports.handlePaymentCallback = (req, res) => {
       .join("&") + `&key=${privateKey}`;
 
   const expectedSign = crypto.createHash("md5").update(signStr).digest("hex");
+  if (expectedSign !== sign) return res.status(403).send("Invalid signature");
 
-  if (expectedSign !== sign) {
-    return res.status(403).send("Invalid signature");
-  }
-
-  // Save recharge and update balance
+  // Check if already inserted
   db.query(
-    "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status) VALUES (?, ?, ?, 'success')",
-    [userId, trade_amount, mch_order_no],
-    (err) => {
-      if (err) {
-        console.error("Recharge insert error", err);
-        return res.status(500).send("DB error");
-      }
+    "SELECT id FROM recharge_requests WHERE gateway_txn_id = ?",
+    [mch_order_no],
+    (err, results) => {
+      if (err) return res.status(500).send("DB read error");
+      if (results.length > 0) return res.send("ok"); // already handled
 
+      // Insert recharge
       db.query(
-        "UPDATE users SET balance = balance + ? WHERE id = ?",
-        [trade_amount, userId],
-        () => res.send("ok")
+        "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status) VALUES (?, ?, ?, 'success')",
+        [userId, trade_amount, mch_order_no],
+        (err2) => {
+          if (err2) {
+            console.error("Recharge insert error", err2);
+            return res.status(500).send("DB error");
+          }
+
+          db.query(
+            "UPDATE users SET balance = balance + ? WHERE id = ?",
+            [trade_amount, userId],
+            () => res.send("ok")
+          );
+        }
       );
     }
   );

@@ -20,7 +20,9 @@ const allowedOrigins = [
   // "http://192.168.1.40:5173",
   "https://bullvibe.co.in", // ✅ Client site
   "https://www.bullvibe.co.in",
-  "https://admin.bullvibe.co.in", // ✅ Admin panel
+  "https://admin.bullvibe.co.in",
+  "https://cashier.rupeerush.vip",
+  " https://wwww.baidu.com",
 ];
 
 app.use(
@@ -38,6 +40,7 @@ app.use(
 
 app.use(cookieParser());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // 🟢 User session (default for all except /admin)
 const userSession = session({
