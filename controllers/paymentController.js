@@ -3,53 +3,68 @@ const db = require("../db");
 
 exports.initiateRecharge = async (req, res) => {
   const user = req.user;
-  const { amount } = req.body;
+  const { amount, phone } = req.body;
 
-  if (!user || !amount)
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing user or amount" });
+  if (!user || !amount || !phone) {
+    return res.status(400).json({ success: false, message: "Missing fields" });
+  }
 
-  const merchantId = "84423629";
-  const privateKey = "762a827b2515e4463ba01945711c8532";
-  const gatewayUrl = "https://xyu10.top/api/payGate/payCollect";
-  const notifyUrl = "https://api.bullvibe.co.in/api/recharge/callback"; // Now handled by Node
-  const returnUrl = "https://bullvibe.co.in/recharge-history";
+  const mch_id = "84423629";
+  const mch_order_no = `ORDER${Date.now()}${user.id}`;
+  const notifyUrl = "https://api.bullvibe.co.in/api/recharge/callback";
+  const page_url = "https://bullvibe.co.in/recharge-history";
+  const trade_amount = parseInt(amount); // Must be integer
+  const currency = "INR";
+  const pay_type = "INDIA_UPI";
+  const attach = "recharge";
+  const sign_type = "MD5";
+  const payer_phone = phone;
 
-  const orderNo = `ORD${Date.now()}`;
-  const timestamp = Math.floor(Date.now() / 1000);
-  const amountStr = amount.toFixed(2);
-
+  // Step 1: Build sign string
   const payload = {
-    merchant_id: merchantId,
-    order_no: orderNo,
-    amount: amountStr,
-    notify_url: notifyUrl,
-    return_url: returnUrl,
-    username: user.name,
-    userId: user.id,
-    timestamp,
+    mch_id,
+    mch_order_no,
+    notifyUrl,
+    page_url,
+    trade_amount,
+    currency,
+    pay_type,
+    payer_phone,
+    attach,
   };
 
-  // Generate MD5 signature
+  const privateKey = "762a827b2515e4463ba01945711c8532";
+
+  // Create sign string in required order
   const signString =
     Object.keys(payload)
       .sort()
-      .map((key) => `${key}=${payload[key]}`)
+      .map((k) => `${k}=${payload[k]}`)
       .join("&") + `&key=${privateKey}`;
 
-  const signature = crypto.createHash("md5").update(signString).digest("hex");
+  const sign = crypto.createHash("md5").update(signString).digest("hex");
 
+  // Final payload to send
+  const postPayload = {
+    ...payload,
+    sign,
+    sign_type,
+  };
+
+  // Step 2: Build and return HTML form
   const formHtml = `
     <html>
-      <body>
-        <form id="paymentForm" method="POST" action="${gatewayUrl}">
-          ${Object.entries({ ...payload, sign: signature })
-            .map(([k, v]) => `<input type="hidden" name="${k}" value="${v}" />`)
-            .join("\n")}
-        </form>
-        <script>document.getElementById('paymentForm').submit();</script>
-      </body>
+    <body>
+      <form id="payForm" method="POST" action="https://xyu10.top/api/payGate/payCollect">
+        ${Object.entries(postPayload)
+          .map(
+            ([key, val]) =>
+              `<input type="hidden" name="${key}" value="${val}" />`
+          )
+          .join("\n")}
+      </form>
+      <script>document.getElementById('payForm').submit();</script>
+    </body>
     </html>
   `;
 
