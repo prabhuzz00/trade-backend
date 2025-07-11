@@ -79,12 +79,10 @@ exports.initiateRecharge = async (req, res) => {
         if (data?.status === 1 && data?.data?.pay_url) {
           return res.json({ success: true, url: data.data.pay_url });
         } else {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: data?.msg || "Payment gateway error",
-            });
+          return res.status(400).json({
+            success: false,
+            message: data?.msg || "Payment gateway error",
+          });
         }
       } catch (error) {
         console.error(
@@ -101,10 +99,12 @@ exports.initiateRecharge = async (req, res) => {
 
 exports.handlePaymentCallback = (req, res) => {
   const { order_sn, money, status, pay_time, msg, remark, sign } = req.body;
+  console.log("✅ LGPay callback triggered", req.body);
 
   const requestIP =
     req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
   if (requestIP !== IP && requestIP !== `::ffff:${IP}`) {
+    console.log("Unauthorized ip");
     return res.status(403).send("Unauthorized IP");
   }
 
