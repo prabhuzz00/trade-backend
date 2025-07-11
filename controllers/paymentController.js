@@ -8,7 +8,7 @@ exports.initiateRecharge = async (req, res) => {
 
   const payload = {
     mch_id: "84423629",
-    mch_order_no: `ORDER${Date.now()}_UID${user.id}`,
+    mch_order_no: `ORDER${Date.now()}UID${user.id}`,
     notifyUrl: "https://api.bullvibe.co.in/api/recharge/callback",
     page_url: "https://bullvibe.co.in/recharge-history",
     trade_amount: parseInt(amount),
@@ -209,7 +209,7 @@ exports.handlePaymentCallback = (req, res) => {
     return res.status(400).send("Missing required fields");
   }
 
-  const userId = parseInt(mch_order_no.split("_UID")[1]);
+  const userId = parseInt(mch_order_no.split("UID")[1]);
   if (!userId || isNaN(userId)) {
     return res.status(400).send("Invalid user ID in order number");
   }
