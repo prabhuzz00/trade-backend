@@ -7,14 +7,29 @@ exports.initiateRecharge = async (req, res) => {
   const user = req.user;
   const { amount } = req.body;
 
-  console.log("LGPay request user:", req.user);
-  console.log("LGPay amount:", amount);
-
   if (!user || !amount || isNaN(amount) || amount < 1) {
     return res
       .status(400)
       .json({ success: false, message: "Missing or invalid fields" });
   }
+
+  // 🔧 Generate 19-digit numeric LGPay-style order ID
+  const generateOrderId = () => {
+    const now = new Date();
+    const pad = (n) => n.toString().padStart(2, "0");
+    const timePart =
+      now.getFullYear().toString() +
+      pad(now.getMonth() + 1) +
+      pad(now.getDate()) +
+      pad(now.getHours()) +
+      pad(now.getMinutes()) +
+      pad(now.getSeconds());
+
+    const randomPart = Math.floor(10000000 + Math.random() * 90000000); // 8-digit random
+    return timePart + randomPart;
+  };
+
+  const order_sn = generateOrderId();
 
   const app_id = "YD4141";
   const secret_key = "XQnjoIu2B8soZbndtmKg9tsVKQwiboVY";
@@ -23,63 +38,78 @@ exports.initiateRecharge = async (req, res) => {
   const return_url = "https://bullvibe.co.in/recharge-history";
   const ip = "139.180.137.164";
   const remark = "inr888";
+  const money = parseInt(amount * 100); // LGPay uses paise-style units
 
-  const order_sn = `ORDER${Date.now()}UID${user.id}`;
-  const money = parseInt(amount * 100); // Required by LGPay
-
-  const params = {
-    app_id,
-    trade_type,
-    order_sn,
-    money,
-    notify_url,
-    return_url,
-    ip,
-    remark,
-  };
-
-  // Create sign string
-  const sortedKeys = Object.keys(params).sort();
-  const signString =
-    sortedKeys
-      .filter((k) => params[k] !== "")
-      .map((k) => `${k}=${params[k]}`)
-      .join("&") + `&key=${secret_key}`;
-  const sign = crypto
-    .createHash("md5")
-    .update(signString)
-    .digest("hex")
-    .toUpperCase();
-
-  params.sign = sign;
-
-  try {
-    const encodedData = new URLSearchParams(params).toString();
-
-    const { data } = await axios.post(
-      "https://www.lg-pay.com/api/order/create",
-      encodedData,
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+  // ✅ Insert into recharge_requests as unpaid
+  db.query(
+    "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status, created_at, username) VALUES (?, ?, ?, 'unpaid', NOW(), ?)",
+    [user.id, amount, order_sn, user.name],
+    async (err) => {
+      if (err) {
+        console.error("DB insert error:", err);
+        return res
+          .status(500)
+          .json({ success: false, message: "Database error" });
       }
-    );
 
-    if (data && data.code === 1 && data.data?.pay_url) {
-      return res.json({ success: true, url: data.data.pay_url });
-    } else {
-      console.error("LGPay error response:", data);
-      return res
-        .status(400)
-        .json({ success: false, message: data.msg || "Gateway rejected" });
+      // Prepare parameters
+      const params = {
+        app_id,
+        trade_type,
+        order_sn,
+        money,
+        notify_url,
+        return_url,
+        ip,
+        remark,
+      };
+
+      // Sign string
+      const signString =
+        Object.keys(params)
+          .sort()
+          .map((k) => `${k}=${params[k]}`)
+          .join("&") + `&key=${secret_key}`;
+      const sign = crypto
+        .createHash("md5")
+        .update(signString)
+        .digest("hex")
+        .toUpperCase();
+
+      params.sign = sign;
+
+      try {
+        const encodedData = new URLSearchParams(params).toString();
+
+        const { data } = await axios.post(
+          "https://www.lg-pay.com/api/order/create",
+          encodedData,
+          {
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+          }
+        );
+
+        if (data?.status === 1 && data?.data?.pay_url) {
+          return res.json({ success: true, url: data.data.pay_url });
+        } else {
+          console.error("LGPay error response:", data);
+          return res
+            .status(400)
+            .json({ success: false, message: data.msg || "Gateway rejected" });
+        }
+      } catch (err2) {
+        console.error(
+          "LGPay axios error:",
+          err2?.response?.data || err2.message
+        );
+        return res
+          .status(500)
+          .json({ success: false, message: "LGPay API error" });
+      }
     }
-  } catch (err) {
-    console.error("LGPay Axios error:", err?.response?.data || err.message);
-    return res
-      .status(500)
-      .json({ success: false, message: "Payment gateway error" });
-  }
+  );
 };
 
 exports.handlePaymentCallback = (req, res) => {
