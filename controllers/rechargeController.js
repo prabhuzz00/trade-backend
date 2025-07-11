@@ -161,7 +161,7 @@ exports.getMyRecharges = (req, res) => {
   if (!userId) return res.status(401).json([]);
 
   db.query(
-    "SELECT id, amount, utr, status, created_at FROM recharge_requests WHERE user_id = ? ORDER BY created_at DESC",
+    "SELECT id, amount, gateway_txn_id, status, created_at FROM recharge_requests WHERE user_id = ? ORDER BY created_at DESC",
     [userId],
     (err, results) => {
       if (err) return res.status(500).json([]);
