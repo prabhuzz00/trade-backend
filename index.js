@@ -22,7 +22,9 @@ const allowedOrigins = [
   "https://www.bullvibe.co.in",
   "https://admin.bullvibe.co.in",
   "https://cashier.rupeerush.vip",
-  " https://wwww.baidu.com",
+  " https://139.180.137.164",
+  " http://139.180.137.164",
+  " 139.180.137.164",
 ];
 
 app.use(
