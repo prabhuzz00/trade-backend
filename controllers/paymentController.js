@@ -202,7 +202,7 @@ exports.handlePaymentCallback = (req, res) => {
     pay_type,
     attach,
     sign,
-    sign_type,
+    sign_type = "MD5",
   } = req.body;
 
   if (!mch_order_no || !trade_amount || !sign) {
