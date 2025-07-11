@@ -17,7 +17,6 @@ exports.initiateRecharge = async (req, res) => {
     payer_phone: phone,
     attach: "recharge",
   };
-  //
 
   const privateKey = "762a827b2515e4463ba01945711c8532";
 
