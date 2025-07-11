@@ -1,140 +1,132 @@
+// paymentController.js
 const crypto = require("crypto");
 const axios = require("axios");
 const db = require("../db");
 
-//lgpay
+const APP_ID = "YD4141";
+const SECRET_KEY = "XQnjoIu2B8soZbndtmKg9tsVKQwiboVY";
+const TRADE_TYPE = "INRUPI";
+const NOTIFY_URL = "https://api.bullvibe.co.in/api/recharge/callback";
+const RETURN_URL = "https://bullvibe.co.in/recharge-history";
+const REMARK = "inr888";
+const IP = "139.180.137.164";
+
 exports.initiateRecharge = async (req, res) => {
   const user = req.user;
   const { amount } = req.body;
 
   if (!user || !amount || isNaN(amount) || amount < 1) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing or invalid fields" });
+    return res.status(400).json({ success: false, message: "Invalid input" });
   }
 
-  // 🔧 Generate 19-digit numeric LGPay-style order ID
-  const generateOrderId = () => {
-    const now = new Date();
-    const pad = (n) => n.toString().padStart(2, "0");
-    const timePart =
-      now.getFullYear().toString() +
-      pad(now.getMonth() + 1) +
-      pad(now.getDate()) +
-      pad(now.getHours()) +
-      pad(now.getMinutes()) +
-      pad(now.getSeconds());
+  const now = new Date();
+  const pad = (n) => n.toString().padStart(2, "0");
+  const timePart =
+    now.getFullYear().toString() +
+    pad(now.getMonth() + 1) +
+    pad(now.getDate()) +
+    pad(now.getHours()) +
+    pad(now.getMinutes()) +
+    pad(now.getSeconds());
+  const randomPart = Math.floor(10000000 + Math.random() * 90000000);
+  const order_sn = timePart + randomPart;
 
-    const randomPart = Math.floor(10000000 + Math.random() * 90000000); // 8-digit random
-    return timePart + randomPart;
-  };
-
-  const order_sn = generateOrderId();
-
-  const app_id = "YD4141";
-  const secret_key = "XQnjoIu2B8soZbndtmKg9tsVKQwiboVY";
-  const trade_type = "INRUPI";
-  const notify_url = "https://api.bullvibe.co.in/api/recharge/callback";
-  const return_url = "https://bullvibe.co.in/recharge-history";
-  const ip = "139.180.137.164";
-  const remark = "inr888";
-  const money = parseInt(amount * 100); // LGPay uses paise-style units
-
-  // ✅ Insert into recharge_requests as unpaid
   db.query(
     "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, status, created_at, username) VALUES (?, ?, ?, 'unpaid', NOW(), ?)",
     [user.id, amount, order_sn, user.name],
     async (err) => {
       if (err) {
         console.error("DB insert error:", err);
-        return res
-          .status(500)
-          .json({ success: false, message: "Database error" });
+        return res.status(500).json({ success: false, message: "DB error" });
       }
 
-      // Prepare parameters
+      const money = parseInt(amount * 100);
       const params = {
-        app_id,
-        trade_type,
+        app_id: APP_ID,
+        trade_type: TRADE_TYPE,
         order_sn,
         money,
-        notify_url,
-        return_url,
-        ip,
-        remark,
+        notify_url: NOTIFY_URL,
+        return_url: RETURN_URL,
+        ip: IP,
+        remark: REMARK,
       };
 
-      // Sign string
       const signString =
         Object.keys(params)
+          .filter((k) => params[k] !== "")
           .sort()
           .map((k) => `${k}=${params[k]}`)
-          .join("&") + `&key=${secret_key}`;
+          .join("&") + `&key=${SECRET_KEY}`;
+
       const sign = crypto
         .createHash("md5")
         .update(signString)
         .digest("hex")
         .toUpperCase();
-
       params.sign = sign;
 
       try {
-        const encodedData = new URLSearchParams(params).toString();
-
+        const encoded = new URLSearchParams(params).toString();
         const { data } = await axios.post(
           "https://www.lg-pay.com/api/order/create",
-          encodedData,
+          encoded,
           {
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
           }
         );
 
         if (data?.status === 1 && data?.data?.pay_url) {
           return res.json({ success: true, url: data.data.pay_url });
         } else {
-          console.error("LGPay error response:", data);
           return res
             .status(400)
-            .json({ success: false, message: data.msg || "Gateway rejected" });
+            .json({
+              success: false,
+              message: data?.msg || "Payment gateway error",
+            });
         }
-      } catch (err2) {
+      } catch (error) {
         console.error(
-          "LGPay axios error:",
-          err2?.response?.data || err2.message
+          "LGPay API error:",
+          error?.response?.data || error.message
         );
         return res
           .status(500)
-          .json({ success: false, message: "LGPay API error" });
+          .json({ success: false, message: "Gateway communication failed" });
       }
     }
   );
 };
 
 exports.handlePaymentCallback = (req, res) => {
-  const { mch_id, order_sn, order_amount, order_no, sign } = req.body;
+  const { order_sn, money, status, pay_time, msg, remark, sign } = req.body;
 
-  const secret_key = "XQnjoIu2B8soZbndtmKg9tsVKQwiboVY";
+  const requestIP =
+    req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
+  if (requestIP !== IP && requestIP !== `::ffff:${IP}`) {
+    return res.status(403).send("Unauthorized IP");
+  }
 
-  if (!order_sn || !order_amount || !order_no || !sign) {
+  if (!order_sn || !money || !status || !pay_time || !msg || !remark || !sign) {
     return res.status(400).send("Missing fields");
   }
 
-  // ✅ Build sign string exactly as LGPay expects
   const signParams = {
-    mch_id,
+    money,
+    msg,
     order_sn,
-    order_amount,
-    order_no,
+    pay_time,
+    remark,
+    status,
   };
 
   const signString =
     Object.keys(signParams)
-      .filter((key) => signParams[key])
+      .filter((k) => signParams[k])
       .sort()
       .map((k) => `${k}=${signParams[k]}`)
-      .join("&") + `&key=${secret_key}`;
+      .join("&") + `&key=${SECRET_KEY}`;
 
   const expectedSign = crypto
     .createHash("md5")
@@ -142,46 +134,37 @@ exports.handlePaymentCallback = (req, res) => {
     .digest("hex")
     .toUpperCase();
 
-  if (expectedSign !== sign) {
-    return res.status(403).send("Invalid signature");
-  }
+  if (expectedSign !== sign) return res.status(403).send("Invalid signature");
+  if (parseInt(status) !== 1)
+    return res.status(400).send("Payment not completed");
 
-  const amount = parseFloat(order_amount) / 100;
-
-  // ✅ Find existing recharge record by order_sn
   db.query(
     "SELECT * FROM recharge_requests WHERE gateway_txn_id = ?",
     [order_sn],
     (err, results) => {
-      if (err) return res.status(500).send("DB error");
-
-      if (results.length === 0) {
-        return res.status(404).send("Recharge not found");
-      }
+      if (err || results.length === 0)
+        return res.status(500).send("Order not found");
 
       const recharge = results[0];
-      const userId = recharge.user_id;
-
-      // ✅ If already paid, exit early
-      if (recharge.status === "success") {
-        return res.send("success");
+      if (recharge.status === "success" || recharge.status === "Success") {
+        return res.send("ok");
       }
 
-      // ✅ Update recharge status and user balance
+      const userId = recharge.user_id;
+      const amount = recharge.amount;
+
       db.query(
         "UPDATE recharge_requests SET status = 'success' WHERE id = ?",
         [recharge.id],
         (err2) => {
-          if (err2) return res.status(500).send("Failed to update recharge");
+          if (err2) return res.status(500).send("Recharge update error");
 
           db.query(
             "UPDATE users SET balance = balance + ? WHERE id = ?",
             [amount, userId],
             (err3) => {
-              if (err3)
-                return res.status(500).send("Failed to update user balance");
-
-              return res.send("success");
+              if (err3) return res.status(500).send("Balance update error");
+              return res.send("ok");
             }
           );
         }
