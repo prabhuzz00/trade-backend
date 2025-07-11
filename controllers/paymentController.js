@@ -101,12 +101,12 @@ exports.handlePaymentCallback = (req, res) => {
   const { order_sn, money, status, pay_time, msg, remark, sign } = req.body;
   console.log("✅ LGPay callback triggered", req.body);
 
-  const requestIP =
-    req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
-  if (requestIP !== IP && requestIP !== `::ffff:${IP}`) {
-    console.log("Unauthorized ip");
-    return res.status(403).send("Unauthorized IP");
-  }
+  // const requestIP =
+  //   req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
+  // if (requestIP !== IP && requestIP !== `::ffff:${IP}`) {
+  //   console.log("Unauthorized ip");
+  //   return res.status(403).send("Unauthorized IP");
+  // }
 
   if (!order_sn || !money || !status || !pay_time || !msg || !remark || !sign) {
     return res.status(400).send("Missing fields");
