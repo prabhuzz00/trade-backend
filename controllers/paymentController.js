@@ -7,6 +7,9 @@ exports.initiateRecharge = async (req, res) => {
   const user = req.user;
   const { amount } = req.body;
 
+  console.log("LGPay request user:", req.user);
+  console.log("LGPay amount:", amount);
+
   if (!user || !amount || isNaN(amount) || amount < 1) {
     return res
       .status(400)
