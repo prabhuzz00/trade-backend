@@ -192,7 +192,7 @@ exports.handlePaymentCallback = (req, res) => {
 
 //hefupay
 // exports.initiateRecharge = async (req, res) => {
-//   const user = req.user;
+// const user = req.user;
 //   const { amount, phone } = req.body;
 
 //   const payload = {
