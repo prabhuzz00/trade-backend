@@ -1,5 +1,5 @@
 const db = require("../db");
-
+const bcrypt = require("bcrypt");
 exports.register = (req, res) => {
   const { name, email, password, referralCode } = req.body;
 
@@ -50,14 +50,33 @@ function generateReferralCode() {
 
 exports.login = (req, res) => {
   const { email, password } = req.body;
-  db.query("SELECT * FROM users WHERE email = ?", [email], (err, results) => {
-    if (err) return res.status(500).json({ success: false });
-    if (results.length === 0 || results[0].password !== password) {
-      return res.json({ success: false, message: "Invalid login" });
+
+  db.query(
+    "SELECT * FROM users WHERE email = ?",
+    [email],
+    async (err, results) => {
+      if (err)
+        return res
+          .status(500)
+          .json({ success: false, message: "Server error" });
+
+      if (results.length === 0) {
+        return res.json({ success: false, message: "Invalid login" });
+      }
+
+      const user = results[0];
+
+      // ✅ Compare plain password to hashed password
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.json({ success: false, message: "Invalid login" });
+      }
+
+      // ✅ Store session and login success
+      req.session.user_id = user.id;
+      res.json({ success: true });
     }
-    req.session.user_id = results[0].id;
-    res.json({ success: true });
-  });
+  );
 };
 
 exports.getMe = (req, res) => {
