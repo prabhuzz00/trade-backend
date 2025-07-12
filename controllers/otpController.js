@@ -4,14 +4,16 @@ const bcrypt = require("bcrypt");
 
 exports.sendOtp = async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone || !/^\d{10}$/.test(phone)) {
+    let { phone } = req.body;
+
+    // Ensure only 10 digits, no +91
+    phone = phone.replace(/\D/g, ""); // remove non-numeric
+    if (!/^\d{10}$/.test(phone)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid phone number" });
     }
 
-    // Check resend limit
     const [recent] = await db
       .promise()
       .query(
@@ -19,10 +21,12 @@ exports.sendOtp = async (req, res) => {
         [phone]
       );
     if (recent[0].count > 0) {
-      return res.status(429).json({
-        success: false,
-        message: "OTP already sent. Try again later.",
-      });
+      return res
+        .status(429)
+        .json({
+          success: false,
+          message: "OTP already sent. Try again later.",
+        });
     }
 
     const otp = Math.floor(Math.random() * 10000 + 50000);
@@ -44,7 +48,7 @@ exports.sendOtp = async (req, res) => {
       sender_id: "15018",
       variables_values: `${otp}`,
       route: "otp",
-      numbers: phone,
+      numbers: phone, // ✅ already 10-digit only
     };
 
     const response = await axios.post(
@@ -75,9 +79,15 @@ function generateReferralCode() {
 
 exports.verifyOtp = async (req, res) => {
   try {
-    const { phone, otp, name, password, referralCode } = req.body;
+    let { phone, otp, name, password, referralCode } = req.body;
+    phone = phone.replace(/\D/g, "");
+    if (!/^\d{10}$/.test(phone)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid phone number" });
+    }
 
-    if (!phone || !otp || !name || !password) {
+    if (!otp || !name || !password) {
       return res
         .status(400)
         .json({ success: false, message: "Missing fields" });
