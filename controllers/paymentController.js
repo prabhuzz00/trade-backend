@@ -101,26 +101,11 @@ exports.handlePaymentCallback = (req, res) => {
   const { order_sn, money, status, pay_time, msg, remark, sign } = req.body;
   console.log("✅ LGPay callback triggered", req.body);
 
-  // const requestIP =
-  //   req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
-  // if (requestIP !== IP && requestIP !== `::ffff:${IP}`) {
-  //   console.log("Unauthorized ip");
-  //   return res.status(403).send("Unauthorized IP");
-  // }
-
   if (!order_sn || !money || !status || !pay_time || !msg || !remark || !sign) {
     return res.status(400).send("Missing fields");
   }
 
-  const signParams = {
-    money,
-    msg,
-    order_sn,
-    pay_time,
-    remark,
-    status,
-  };
-
+  const signParams = { money, msg, order_sn, pay_time, remark, status };
   const signString =
     Object.keys(signParams)
       .filter((k) => signParams[k])
@@ -153,25 +138,133 @@ exports.handlePaymentCallback = (req, res) => {
       const userId = recharge.user_id;
       const amount = recharge.amount;
 
+      // Get is_recharge and referred_by
       db.query(
-        "UPDATE recharge_requests SET status = 'success' WHERE id = ?",
-        [recharge.id],
-        (err2) => {
-          if (err2) return res.status(500).send("Recharge update error");
+        "SELECT is_recharge, referred_by FROM users WHERE id = ?",
+        [userId],
+        (err4, users) => {
+          if (err4 || users.length === 0)
+            return res.status(500).send("User lookup failed");
 
-          db.query(
-            "UPDATE users SET balance = balance + ? WHERE id = ?",
-            [amount, userId],
-            (err3) => {
-              if (err3) return res.status(500).send("Balance update error");
-              return res.send("ok");
-            }
-          );
+          const user = users[0];
+
+          const applyRechargeAndBonus = () => {
+            db.query(
+              "UPDATE users SET balance = balance + ?, is_recharge = 1 WHERE id = ?",
+              [amount, userId],
+              (err3) => {
+                if (err3) return res.status(500).send("Balance update error");
+                return res.send("ok");
+              }
+            );
+          };
+
+          const updateRechargeStatus = () => {
+            db.query(
+              "UPDATE recharge_requests SET status = 'success' WHERE id = ?",
+              [recharge.id],
+              (err2) => {
+                if (err2) return res.status(500).send("Recharge update error");
+
+                // Check referral bonus
+                if (
+                  user.is_recharge === 0 &&
+                  user.referred_by !== null &&
+                  user.referred_by !== undefined
+                ) {
+                  db.query(
+                    "UPDATE users SET balance = balance + 50, bonus = bonus + 50 WHERE id = ?",
+                    [user.referred_by],
+                    (bonusErr) => {
+                      if (bonusErr)
+                        return res
+                          .status(500)
+                          .send("Referral bonus update failed");
+                      applyRechargeAndBonus();
+                    }
+                  );
+                } else {
+                  applyRechargeAndBonus();
+                }
+              }
+            );
+          };
+
+          updateRechargeStatus();
         }
       );
     }
   );
 };
+
+// exports.handlePaymentCallback = (req, res) => {
+//   const { order_sn, money, status, pay_time, msg, remark, sign } = req.body;
+//   console.log("✅ LGPay callback triggered", req.body);
+
+//   if (!order_sn || !money || !status || !pay_time || !msg || !remark || !sign) {
+//     return res.status(400).send("Missing fields");
+//   }
+
+//   const signParams = {
+//     money,
+//     msg,
+//     order_sn,
+//     pay_time,
+//     remark,
+//     status,
+//   };
+
+//   const signString =
+//     Object.keys(signParams)
+//       .filter((k) => signParams[k])
+//       .sort()
+//       .map((k) => `${k}=${signParams[k]}`)
+//       .join("&") + `&key=${SECRET_KEY}`;
+
+//   const expectedSign = crypto
+//     .createHash("md5")
+//     .update(signString)
+//     .digest("hex")
+//     .toUpperCase();
+
+//   if (expectedSign !== sign) return res.status(403).send("Invalid signature");
+//   if (parseInt(status) !== 1)
+//     return res.status(400).send("Payment not completed");
+
+//   db.query(
+//     "SELECT * FROM recharge_requests WHERE gateway_txn_id = ?",
+//     [order_sn],
+//     (err, results) => {
+//       if (err || results.length === 0)
+//         return res.status(500).send("Order not found");
+
+//       const recharge = results[0];
+//       if (recharge.status === "success" || recharge.status === "Success") {
+//         return res.send("ok");
+//       }
+
+//       const userId = recharge.user_id;
+//       const amount = recharge.amount;
+
+//       db.query(
+//         "UPDATE recharge_requests SET status = 'success' WHERE id = ?",
+//         [recharge.id],
+//         (err2) => {
+//           if (err2) return res.status(500).send("Recharge update error");
+
+//           db.query(
+//             "UPDATE users SET balance = balance + ? WHERE id = ?",
+//             [amount, userId],
+//             (err3) => {
+//               if (err3) return res.status(500).send("Balance update error");
+//               return res.send("ok");
+//             }
+//           );
+//         }
+//       );
+//     }
+//   );
+// };
 
 //hefupay
 // exports.initiateRecharge = async (req, res) => {
