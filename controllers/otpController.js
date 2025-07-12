@@ -5,7 +5,7 @@ const bcrypt = require("bcrypt");
 exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
-    if (!phone || !/^\+91\d{10}$/.test(phone)) {
+    if (!phone || !/^\d{10}$/.test(phone)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid phone number" });
@@ -44,7 +44,7 @@ exports.sendOtp = async (req, res) => {
       sender_id: "15018",
       variables_values: `${otp}`,
       route: "otp",
-      numbers: phone.replace("+91", ""),
+      numbers: phone,
     };
 
     const response = await axios.post(
