@@ -1,4 +1,4 @@
-const db = require("../db"); // your MySQL connection
+const db = require("../db");
 const axios = require("axios");
 const bcrypt = require("bcrypt");
 
@@ -11,11 +11,13 @@ exports.sendOtp = async (req, res) => {
         .json({ success: false, message: "Invalid phone number" });
     }
 
-    // Check rate limit: prevent resend within 5 minutes
-    const [recent] = await db.query(
-      "SELECT COUNT(*) AS count FROM verify WHERE username = ? AND time >= NOW() - INTERVAL 5 MINUTE",
-      [phone]
-    );
+    // Check resend limit
+    const [recent] = await db
+      .promise()
+      .query(
+        "SELECT COUNT(*) AS count FROM verify WHERE username = ? AND time >= NOW() - INTERVAL 5 MINUTE",
+        [phone]
+      );
     if (recent[0].count > 0) {
       return res.status(429).json({
         success: false,
@@ -23,24 +25,21 @@ exports.sendOtp = async (req, res) => {
       });
     }
 
-    // Generate OTP
     const otp = Math.floor(Math.random() * 10000 + 50000);
 
-    // Save to DB
-    await db.query("INSERT INTO verify (username, otp) VALUES (?, ?)", [
-      phone,
-      otp,
-    ]);
+    await db
+      .promise()
+      .query("INSERT INTO verify (username, otp) VALUES (?, ?)", [phone, otp]);
 
-    // Fetch API key from DB
-    const [apiRow] = await db.query("SELECT api FROM otp WHERE id = 1");
+    const [apiRow] = await db
+      .promise()
+      .query("SELECT api FROM otp WHERE id = 1");
     const apiKey = apiRow[0]?.api;
     if (!apiKey)
       return res
         .status(500)
         .json({ success: false, message: "SMS API key not found" });
 
-    // Send SMS
     const payload = {
       sender_id: "15018",
       variables_values: `${otp}`,
@@ -84,11 +83,12 @@ exports.verifyOtp = async (req, res) => {
         .json({ success: false, message: "Missing fields" });
     }
 
-    // Check OTP
-    const [match] = await db.query(
-      "SELECT * FROM verify WHERE username = ? AND otp = ? AND time >= NOW() - INTERVAL 10 MINUTE ORDER BY time DESC LIMIT 1",
-      [phone, otp]
-    );
+    const [match] = await db
+      .promise()
+      .query(
+        "SELECT * FROM verify WHERE username = ? AND otp = ? AND time >= NOW() - INTERVAL 10 MINUTE ORDER BY time DESC LIMIT 1",
+        [phone, otp]
+      );
 
     if (match.length === 0) {
       return res
@@ -96,22 +96,20 @@ exports.verifyOtp = async (req, res) => {
         .json({ success: false, message: "Invalid or expired OTP" });
     }
 
-    // Check for existing user
-    const [existing] = await db.query("SELECT * FROM users WHERE email = ?", [
-      phone,
-    ]);
+    const [existing] = await db
+      .promise()
+      .query("SELECT * FROM users WHERE email = ?", [phone]);
     if (existing.length > 0) {
       return res
         .status(409)
         .json({ success: false, message: "User already exists" });
     }
 
-    // Prepare new user data
     const hashedPassword = await bcrypt.hash(password, 10);
     const newReferralCode = generateReferralCode();
 
     const insertUser = async (referredById = null) => {
-      await db.query(
+      await db.promise().query(
         `INSERT INTO users 
          (email, password, name, referral_code, referred_by, balance, bonus, is_recharge, created_at)
          VALUES (?, ?, ?, ?, ?, 0, 0, 0, NOW())`,
@@ -123,12 +121,10 @@ exports.verifyOtp = async (req, res) => {
       });
     };
 
-    // Handle referral code if provided
     if (referralCode) {
-      const [referrer] = await db.query(
-        "SELECT id FROM users WHERE referral_code = ?",
-        [referralCode]
-      );
+      const [referrer] = await db
+        .promise()
+        .query("SELECT id FROM users WHERE referral_code = ?", [referralCode]);
 
       if (referrer.length === 0) {
         return res
@@ -139,7 +135,6 @@ exports.verifyOtp = async (req, res) => {
       return await insertUser(referrer[0].id);
     }
 
-    // No referral
     await insertUser();
   } catch (err) {
     console.error("OTP Verify Error:", err);
