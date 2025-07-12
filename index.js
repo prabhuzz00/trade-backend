@@ -10,6 +10,7 @@ const rechargeRoutes = require("./routes/rechargeRoutes");
 const withdrawRoutes = require("./routes/withdrawRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const supportRoutes = require("./routes/supportRoutes");
+const otpRoutes = require("./routes/otpRoutes");
 
 const app = express();
 const PORT = 8000;
@@ -83,6 +84,7 @@ app.use("/api", betRoutes);
 app.use("/api", rechargeRoutes);
 app.use("/api", withdrawRoutes);
 app.use("/api", supportRoutes);
+app.use("/api", otpRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
