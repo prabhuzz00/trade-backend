@@ -28,10 +28,9 @@ exports.getPendingRecharges = (req, res) => {
   // You may add admin authentication here
   db.query(
     `SELECT r.*, u.email 
-     FROM recharge_requests r 
-     JOIN users u ON r.user_id = u.id 
-     WHERE r.status = 'pending'
-     ORDER BY r.created_at DESC`,
+   FROM recharge_requests r 
+   JOIN users u ON r.user_id = u.id 
+   ORDER BY r.created_at DESC`,
     (err, results) => {
       if (err) return res.status(500).json({ success: false });
       res.json(results);
