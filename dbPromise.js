@@ -7,12 +7,4 @@ const pool = mysql.createPool({
   database: "trading_db",
 });
 
-// for local host testing
-// const pool = mysql.createPool({
-//   host: "localhost",
-//   user: "root",
-//   password: "",
-//   database: "trading_db",
-// });
-
 module.exports = pool;

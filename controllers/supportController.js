@@ -48,37 +48,6 @@ exports.getMyTickets = async (req, res) => {
   }
 };
 
-// 🟢 Get ticket messages
-// exports.getTicketMessages = async (req, res) => {
-//   const ticketId = req.params.id;
-//   const userId = req.session.user_id;
-//   const isAdmin = req.session.admin_id;
-
-//   try {
-//     const [[ticket]] = await db.query(
-//       "SELECT * FROM support_tickets WHERE id = ?",
-//       [ticketId]
-//     );
-
-//     if (!ticket) return res.status(404).json({ error: "Ticket not found" });
-
-//     // 🛡️ Authorization check
-//     if (!isAdmin && ticket.user_id !== userId) {
-//       return res.status(403).json({ error: "Unauthorized" });
-//     }
-
-//     const [messages] = await db.query(
-//       "SELECT * FROM ticket_messages WHERE ticket_id = ? ORDER BY created_at ASC",
-//       [ticketId]
-//     );
-
-//     res.json({ ticket, messages });
-//   } catch (err) {
-//     console.error("getTicketMessages error:", err);
-//     res.status(500).json({ error: "Error loading messages" });
-//   }
-// };
-
 exports.getTicketMessages = async (req, res) => {
   const ticketId = req.params.id;
   const isAdmin = req.session.admin_id;
