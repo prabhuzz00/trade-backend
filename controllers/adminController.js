@@ -286,3 +286,23 @@ exports.getDashboardReport = (req, res) => {
     );
   });
 };
+
+exports.updateUserBalance = (req, res) => {
+  const { userId, newBalance } = req.body;
+
+  if (!userId || isNaN(newBalance)) {
+    return res.status(400).json({ success: false, message: "Invalid input" });
+  }
+
+  db.query(
+    "UPDATE users SET balance = ? WHERE id = ?",
+    [parseFloat(newBalance), userId],
+    (err, result) => {
+      if (err) {
+        console.error("DB error:", err);
+        return res.status(500).json({ success: false, message: "DB error" });
+      }
+      res.json({ success: true });
+    }
+  );
+};

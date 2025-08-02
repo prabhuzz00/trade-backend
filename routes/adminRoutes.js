@@ -20,6 +20,7 @@ router.get("/report", adminController.getDashboardReport);
 
 router.get("/users", adminController.getAllUsers);
 router.get("/user/:id", adminController.getUserStats);
+router.post("/update-balance", adminController.updateUserBalance);
 
 router.get("/tickets", supportController.getAllTickets);
 router.get("/tickets/:id/messages", supportController.getTicketMessages);
