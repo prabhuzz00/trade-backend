@@ -25,7 +25,7 @@ const allowedOrigins = [
   "https://cashier.rupeerush.vip",
   " https://139.180.137.164",
   " http://139.180.137.164",
-  " 139.180.137.164",
+  // " 139.180.137.164",
 ];
 
 app.use(
