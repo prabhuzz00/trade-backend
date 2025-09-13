@@ -141,3 +141,42 @@ exports.getReferralInfo = (req, res) => {
     }
   );
 };
+
+// Change Password
+exports.changePassword = async (req, res) => {
+  if (!req.session.user_id)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword)
+    return res.status(400).json({ success: false, message: "Missing fields" });
+
+  db.query(
+    "SELECT password FROM users WHERE id = ?",
+    [req.session.user_id],
+    async (err, results) => {
+      if (err || results.length === 0)
+        return res
+          .status(500)
+          .json({ success: false, message: "User not found" });
+      const user = results[0];
+      const match = await require("bcrypt").compare(oldPassword, user.password);
+      if (!match)
+        return res
+          .status(400)
+          .json({ success: false, message: "Old password incorrect" });
+
+      const hashed = await require("bcrypt").hash(newPassword, 10);
+      db.query(
+        "UPDATE users SET password = ? WHERE id = ?",
+        [hashed, req.session.user_id],
+        (err2) => {
+          if (err2)
+            return res
+              .status(500)
+              .json({ success: false, message: "Failed to update password" });
+          res.json({ success: true });
+        }
+      );
+    }
+  );
+};

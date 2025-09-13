@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 
 const gameRoutes = require("./routes/gameRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -85,6 +86,7 @@ app.use("/api", rechargeRoutes);
 app.use("/api", withdrawRoutes);
 app.use("/api", supportRoutes);
 app.use("/api", otpRoutes);
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);

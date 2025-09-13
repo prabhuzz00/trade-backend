@@ -9,7 +9,9 @@ const {
   logout,
   getBetHistory,
   getReferralInfo,
+  changePassword,
 } = require("../controllers/userController");
+router.post("/change-password", changePassword);
 
 router.post("/register", register);
 router.post("/login", login);

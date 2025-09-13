@@ -1,8 +1,12 @@
 const db = require("../db");
 
+const path = require("path");
+const fs = require("fs");
+
 exports.submitRecharge = (req, res) => {
   const userId = req.session.user_id;
   const { amount, utr } = req.body;
+  let screenshotPath = null;
 
   if (!userId)
     return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -11,9 +15,14 @@ exports.submitRecharge = (req, res) => {
       .status(400)
       .json({ success: false, message: "Missing amount or UTR" });
 
+  // Handle screenshot upload (if using multer, req.file will be available)
+  if (req.file) {
+    screenshotPath = "/uploads/" + req.file.filename;
+  }
+
   db.query(
-    "INSERT INTO recharge_requests (user_id, amount, utr) VALUES (?, ?, ?)",
-    [userId, amount, utr],
+    "INSERT INTO recharge_requests (user_id, amount, gateway_txn_id, screenshot, gateway, status) VALUES (?, ?, ?, ?, ?, ?)",
+    [userId, amount, utr, screenshotPath, "manual", "pending"],
     (err) => {
       if (err)
         return res
@@ -33,7 +42,13 @@ exports.getPendingRecharges = (req, res) => {
    ORDER BY r.created_at DESC`,
     (err, results) => {
       if (err) return res.status(500).json({ success: false });
-      res.json(results);
+      // Attach screenshot URL if present
+      const mapped = results.map((r) => ({
+        ...r,
+        screenshot: r.screenshot ? r.screenshot : null,
+        gateway: r.gateway || null,
+      }));
+      res.json(mapped);
     }
   );
 };
@@ -111,7 +126,7 @@ exports.approveRecharge = (req, res) => {
 
       // Approve the recharge
       db.query(
-        "UPDATE recharge_requests SET status = 'approved' WHERE id = ?",
+        "UPDATE recharge_requests SET status = 'success' WHERE id = ?",
         [id],
         (err2) => {
           if (err2)
@@ -160,7 +175,7 @@ exports.getMyRecharges = (req, res) => {
   if (!userId) return res.status(401).json([]);
 
   db.query(
-    "SELECT id, amount, gateway_txn_id, status, created_at FROM recharge_requests WHERE user_id = ? ORDER BY created_at DESC",
+    "SELECT id, amount, gateway_txn_id, status, gateway, created_at FROM recharge_requests WHERE user_id = ? ORDER BY created_at DESC",
     [userId],
     (err, results) => {
       if (err) return res.status(500).json([]);
