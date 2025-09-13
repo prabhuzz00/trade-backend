@@ -1,5 +1,5 @@
 // routes/userRoutes.js
-
+// User-related routes
 const express = require("express");
 const router = express.Router();
 const {
