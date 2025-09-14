@@ -12,6 +12,7 @@ const withdrawRoutes = require("./routes/withdrawRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const supportRoutes = require("./routes/supportRoutes");
 const otpRoutes = require("./routes/otpRoutes");
+const siteSettingRoutes = require("./routes/siteSettingRoutes");
 
 const app = express();
 const PORT = 8000;
@@ -86,6 +87,7 @@ app.use("/api", rechargeRoutes);
 app.use("/api", withdrawRoutes);
 app.use("/api", supportRoutes);
 app.use("/api", otpRoutes);
+app.use("/api/sitesetting", siteSettingRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 app.listen(PORT, () => {
