@@ -206,72 +206,198 @@ exports.getDashboardReport = (req, res) => {
     total_wins: 0,
     total_losses: 0,
     total_loss_amount: 0,
+    recharge_requests: 0,
+    withdrawal_requests: 0,
+    today: {
+      users: 0,
+      recharges_count: 0,
+      recharges_total: 0,
+      withdrawals_count: 0,
+      withdrawals_total: 0,
+      bets_count: 0,
+      bets_amount: 0,
+      payout: 0,
+      total_profit: 0,
+    },
   };
+
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  const todayStr = `${yyyy}-${mm}-${dd}`;
 
   db.query(`SELECT COUNT(*) AS count FROM users`, (err, users) => {
     if (err) return res.status(500).json({ success: false, error: err });
     report.total_users = users[0].count;
 
+    // Today's users
     db.query(
-      `SELECT COUNT(*) AS count, SUM(amount) AS total FROM recharge_requests WHERE status = 'approved'`,
-      (err2, rech) => {
-        if (err2) return res.status(500).json({ success: false, error: err2 });
-        report.recharges_count = rech[0].count || 0;
-        report.recharges_total = rech[0].total || 0;
+      `SELECT COUNT(*) AS count FROM users WHERE DATE(created_at) = ?`,
+      [todayStr],
+      (errU, todayUsers) => {
+        if (errU) return res.status(500).json({ success: false, error: errU });
+        report.today.users = todayUsers[0].count || 0;
 
         db.query(
-          `SELECT COUNT(*) AS count, SUM(amount) AS total FROM withdraw_requests WHERE status = 'approved'`,
-          (err3, withs) => {
-            if (err3)
-              return res.status(500).json({ success: false, error: err3 });
-            report.withdrawals_count = withs[0].count || 0;
-            report.withdrawals_total = withs[0].total || 0;
+          `SELECT COUNT(*) AS count, SUM(amount) AS total FROM recharge_requests WHERE status = 'success'`,
+          (err2, rech) => {
+            if (err2)
+              return res.status(500).json({ success: false, error: err2 });
+            report.recharges_count = rech[0].count || 0;
+            report.recharges_total = rech[0].total || 0;
 
+            // Today's recharges
             db.query(
-              `SELECT COUNT(*) AS total_bets, SUM(amount) AS total_bet_amount, SUM(payout) AS total_payout FROM bets`,
-              (err4, bets) => {
-                if (err4)
-                  return res.status(500).json({ success: false, error: err4 });
-                report.total_bets = bets[0].total_bets || 0;
-                report.total_bet_amount = bets[0].total_bet_amount || 0;
-                report.total_payout = bets[0].total_payout || 0;
+              `SELECT COUNT(*) AS count, SUM(amount) AS total FROM recharge_requests WHERE status = 'success' AND DATE(created_at) = ?`,
+              [todayStr],
+              (err2t, rechT) => {
+                if (err2t)
+                  return res.status(500).json({ success: false, error: err2t });
+                report.today.recharges_count = rechT[0].count || 0;
+                report.today.recharges_total = rechT[0].total || 0;
 
                 db.query(
-                  `SELECT SUM(bonus) AS total_bonus FROM users`,
-                  (err5, bonus) => {
-                    if (err5)
+                  `SELECT COUNT(*) AS count, SUM(amount) AS total FROM withdraw_requests WHERE status = 'approved'`,
+                  (err3, withs) => {
+                    if (err3)
                       return res
                         .status(500)
-                        .json({ success: false, error: err5 });
-                    report.total_bonus = bonus[0].total_bonus || 0;
+                        .json({ success: false, error: err3 });
+                    report.withdrawals_count = withs[0].count || 0;
+                    report.withdrawals_total = withs[0].total || 0;
 
+                    // Today's withdrawals
                     db.query(
-                      `SELECT COUNT(*) AS win_count FROM bets WHERE result = 'win'`,
-                      (err6, winRes) => {
-                        if (err6)
+                      `SELECT COUNT(*) AS count, SUM(amount) AS total FROM withdraw_requests WHERE status = 'approved' AND DATE(created_at) = ?`,
+                      [todayStr],
+                      (err3t, withsT) => {
+                        if (err3t)
                           return res
                             .status(500)
-                            .json({ success: false, error: err6 });
-                        report.total_wins = winRes[0].win_count || 0;
+                            .json({ success: false, error: err3t });
+                        report.today.withdrawals_count = withsT[0].count || 0;
+                        report.today.withdrawals_total = withsT[0].total || 0;
 
                         db.query(
-                          `SELECT COUNT(*) AS loss_count, SUM(amount) AS total_loss FROM bets WHERE result = 'lose'`,
-                          (err7, lossRes) => {
-                            if (err7)
+                          `SELECT COUNT(*) AS total_bets, SUM(amount) AS total_bet_amount, SUM(payout) AS total_payout FROM bets`,
+                          (err4, bets) => {
+                            if (err4)
                               return res
                                 .status(500)
-                                .json({ success: false, error: err7 });
-                            report.total_losses = lossRes[0].loss_count || 0;
-                            report.total_loss_amount =
-                              lossRes[0].total_loss || 0;
+                                .json({ success: false, error: err4 });
+                            report.total_bets = bets[0].total_bets || 0;
+                            report.total_bet_amount =
+                              bets[0].total_bet_amount || 0;
+                            report.total_payout = bets[0].total_payout || 0;
+                            db.query(
+                              `SELECT SUM(amount) AS total FROM recharge_requests WHERE status = 'unpaid' OR status = 'pending'`,
+                              (errR, rechReq) => {
+                                if (errR)
+                                  return res
+                                    .status(500)
+                                    .json({ success: false, error: errR });
+                                report.recharge_requests =
+                                  rechReq[0].total || 0;
 
-                            report.company_profit =
-                              report.recharges_total -
-                              report.withdrawals_total -
-                              report.total_payout -
-                              report.total_bonus;
+                                // Add withdrawal_requests (total withdrawal where status = pending)
+                                db.query(
+                                  `SELECT SUM(amount) AS total FROM withdraw_requests WHERE status = 'pending'`,
+                                  (errW, withReq) => {
+                                    if (errW)
+                                      return res
+                                        .status(500)
+                                        .json({ success: false, error: errW });
+                                    report.withdrawal_requests =
+                                      withReq[0].total || 0;
 
-                            res.json({ success: true, report });
+                                    // Today's bets
+                                    db.query(
+                                      `SELECT COUNT(*) AS bets_count, SUM(amount) AS bets_amount, SUM(payout) AS payout FROM bets WHERE DATE(created_at) = ?`,
+                                      [todayStr],
+                                      (err4t, betsT) => {
+                                        if (err4t)
+                                          return res
+                                            .status(500)
+                                            .json({
+                                              success: false,
+                                              error: err4t,
+                                            });
+                                        report.today.bets_count =
+                                          betsT[0].bets_count || 0;
+                                        report.today.bets_amount =
+                                          betsT[0].bets_amount || 0;
+                                        report.today.payout =
+                                          betsT[0].payout || 0;
+
+                                        db.query(
+                                          `SELECT SUM(bonus) AS total_bonus FROM users`,
+                                          (err5, bonus) => {
+                                            if (err5)
+                                              return res
+                                                .status(500)
+                                                .json({
+                                                  success: false,
+                                                  error: err5,
+                                                });
+                                            report.total_bonus =
+                                              bonus[0].total_bonus || 0;
+
+                                            db.query(
+                                              `SELECT COUNT(*) AS win_count FROM bets WHERE result = 'win'`,
+                                              (err6, winRes) => {
+                                                if (err6)
+                                                  return res.status(500).json({
+                                                    success: false,
+                                                    error: err6,
+                                                  });
+                                                report.total_wins =
+                                                  winRes[0].win_count || 0;
+
+                                                db.query(
+                                                  `SELECT COUNT(*) AS loss_count, SUM(amount) AS total_loss FROM bets WHERE result = 'lose'`,
+                                                  (err7, lossRes) => {
+                                                    if (err7)
+                                                      return res
+                                                        .status(500)
+                                                        .json({
+                                                          success: false,
+                                                          error: err7,
+                                                        });
+                                                    report.total_losses =
+                                                      lossRes[0].loss_count ||
+                                                      0;
+                                                    report.total_loss_amount =
+                                                      lossRes[0].total_loss ||
+                                                      0;
+
+                                                    report.company_profit =
+                                                      report.recharges_total -
+                                                      report.withdrawals_total;
+
+                                                    report.today.total_profit =
+                                                      report.today
+                                                        .recharges_total -
+                                                      report.today
+                                                        .withdrawals_total;
+
+                                                    res.json({
+                                                      success: true,
+                                                      report,
+                                                    });
+                                                  }
+                                                );
+                                              }
+                                            );
+                                          }
+                                        );
+                                      }
+                                    );
+                                  }
+                                );
+                              }
+                            );
                           }
                         );
                       }

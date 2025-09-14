@@ -180,3 +180,55 @@ exports.changePassword = async (req, res) => {
     }
   );
 };
+
+// Get all transaction details for the current user
+exports.getAllTransactions = (req, res) => {
+  const userId = req.session.user_id;
+  if (!userId)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  // 1. Bets
+  const betsQuery = `SELECT amount, result, created_at FROM bets WHERE user_id = ?`;
+  // 2. Recharges
+  const rechargeQuery = `SELECT amount, created_at FROM recharge_requests WHERE user_id = ? AND status = 'success'`;
+  // 3. Withdrawals
+  const withdrawQuery = `SELECT amount, created_at FROM withdraw_requests WHERE user_id = ? AND status = 'approved'`;
+
+  db.query(betsQuery, [userId], (err1, bets) => {
+    if (err1)
+      return res.status(500).json({ success: false, message: "DB error" });
+    db.query(rechargeQuery, [userId], (err2, recharges) => {
+      if (err2)
+        return res.status(500).json({ success: false, message: "DB error" });
+      db.query(withdrawQuery, [userId], (err3, withdraws) => {
+        if (err3)
+          return res.status(500).json({ success: false, message: "DB error" });
+
+        // Format bets
+        const betTxns = (bets || []).map((b) => ({
+          transaction_amount: b.result === "win" ? +b.amount : -b.amount,
+          type: "Bet",
+          date: b.created_at,
+        }));
+        // Format recharges
+        const rechargeTxns = (recharges || []).map((r) => ({
+          transaction_amount: +r.amount,
+          type: "Deposit",
+          date: r.created_at,
+        }));
+        // Format withdraws
+        const withdrawTxns = (withdraws || []).map((w) => ({
+          transaction_amount: -w.amount,
+          type: "Cashout",
+          date: w.created_at,
+        }));
+
+        // Combine and sort by date ascending
+        const allTxns = [...betTxns, ...rechargeTxns, ...withdrawTxns].sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        );
+        res.json(allTxns);
+      });
+    });
+  });
+};

@@ -265,7 +265,7 @@ exports.setResultManually = (req, res) => {
 
 exports.getCandleHistory = (req, res) => {
   db.query(
-    "SELECT period, open, high, low, close, volume FROM candles ORDER BY period DESC LIMIT 10000",
+    "SELECT period, open, high, low, close, volume FROM candles ORDER BY period DESC LIMIT 6000",
     (err, rows) => {
       if (err) return res.status(500).json({ success: false });
 

@@ -9,6 +9,7 @@ const {
   getBetHistory,
   getReferralInfo,
   changePassword,
+  getAllTransactions,
 } = require("../controllers/userController");
 router.post("/change-password", changePassword);
 
@@ -18,5 +19,6 @@ router.get("/me", getMe);
 router.post("/logout", logout);
 router.get("/bets", getBetHistory);
 router.get("/referral-info", getReferralInfo);
+router.get("/transactions", getAllTransactions);
 
 module.exports = router;
